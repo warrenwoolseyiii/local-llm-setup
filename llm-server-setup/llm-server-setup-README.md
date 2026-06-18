@@ -32,8 +32,9 @@ sudo ~/llm-server-setup/llm-server-setup.sh --all
 
 | File | Description |
 |------|-------------|
-| `llm-server-setup.sh` | Main setup script (run with `sudo`) |
+| `llm-server-setup.sh` | Main setup script (run with `sudo` on the server) |
 | `llm-server.conf` | Configuration file — edit before running |
+| `continue-setup.sh` | VS Code Continue extension setup (run on your dev machine) |
 | `llm-server-setup-README.md` | This file |
 
 ## Configuration
@@ -159,28 +160,28 @@ tailscale status
 
 ### VS Code Integration
 
-Install the **Continue** extension in VS Code and configure `~/.continue/config.json`:
+Install the **Continue** extension (v1.2+) in VS Code, then use the `continue-setup.sh` script on your dev machine to configure it:
 
-```json
-{
-  "models": [
-    {
-      "title": "Chat (Llama 3.1)",
-      "provider": "ollama",
-      "model": "llama3.1:8b",
-      "apiBase": "http://rog-zephyrus:11434"
-    },
-    {
-      "title": "Code (DeepSeek)",
-      "provider": "ollama",
-      "model": "deepseek-coder-v2:16b",
-      "apiBase": "http://msi-gaming:11434"
-    }
-  ]
-}
+```bash
+# First-time setup — initialize config with a chat model
+./continue-setup.sh init --host wrog0llmserver --model llama3.1:8b --name "Llama 3.1 8B"
+
+# Add the DeepSeek code model for autocomplete
+./continue-setup.sh add --host wrog0llmserver --model deepseek-coder:6.7b \
+    --name "DeepSeek Coder 6.7B" --roles autocomplete
+
+# List current configuration
+./continue-setup.sh list
+
+# Remove a model
+./continue-setup.sh remove --name "DeepSeek Coder 6.7B"
 ```
 
-Replace hostnames with your Tailscale IPs if MagicDNS is not enabled.
+Use Tailscale hostnames (if MagicDNS is enabled) or Tailscale IPs for `--host`.
+
+Available roles: `chat`, `edit`, `apply`, `autocomplete`, `embed`
+
+> **Requires:** `python3` with PyYAML (`pip3 install pyyaml`) on your dev machine.
 
 ## Logs & Troubleshooting
 
@@ -208,5 +209,6 @@ Replace hostnames with your Tailscale IPs if MagicDNS is not enabled.
 - Verify Ollama is listening: `ss -tlnp | grep 11434`
 
 **Open WebUI can't reach Ollama:**
-- Ensure `--add-host=host.docker.internal:host-gateway` was used
+- The container uses `--network=host` so Ollama should be reachable at `127.0.0.1:11434`
+- Verify the `OLLAMA_BASE_URL` env var is set: `docker inspect open-webui | grep OLLAMA`
 - Check Ollama is running: `curl http://localhost:11434/api/tags`
