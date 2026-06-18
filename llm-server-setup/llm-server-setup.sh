@@ -483,11 +483,13 @@ phase_webui() {
     fi
 
     local webui_port="${OPEN_WEBUI_PORT:-3000}"
+    local ollama_port="${OLLAMA_PORT:-11434}"
 
-    info "Deploying Open WebUI on port $webui_port..."
+    info "Deploying Open WebUI on port $webui_port (using host networking)..."
     docker run -d \
-        -p "${webui_port}:8080" \
-        --add-host=host.docker.internal:host-gateway \
+        --network=host \
+        -e OLLAMA_BASE_URL="http://127.0.0.1:${ollama_port}" \
+        -e PORT="${webui_port}" \
         -v open-webui:/app/backend/data \
         --name open-webui \
         --restart always \
