@@ -3,7 +3,6 @@
 # LLM Server Setup Script
 # =============================================================================
 # Automated setup for a local LLM inference server on Ubuntu Server 24.04 LTS.
-# Designed for gaming laptops repurposed as headless LLM servers.
 #
 # Usage:
 #   sudo ./llm-server-setup.sh [--all | --phase <phase> ...] [--config <path>]
@@ -274,142 +273,7 @@ EOF
     done
     log "Ollama is running."
 
-    # Pull models
-    local models="${OLLAMA_MODELS:-interactive}"
-    if [[ "$models" == "interactive" ]]; then
-        pull_models_interactive
-    elif [[ -n "$models" ]]; then
-        for model in $models; do
-            info "Pulling model: $model"
-            ollama pull "$model"
-            log "Model $model pulled successfully."
-        done
-    else
-        info "No models specified in config. Skipping model pull."
-    fi
-
     mark_phase_done "ollama"
-}
-
-pull_models_interactive() {
-    header "Interactive Model Selection"
-
-    # Detect VRAM
-    local vram_mb
-    vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
-    local vram_gb=$((vram_mb / 1024))
-
-    echo -e "${BOLD}Detected GPU VRAM: ${GREEN}${vram_gb} GB${NC}"
-    echo ""
-    echo -e "${BOLD}Recommended models for your VRAM:${NC}"
-    echo ""
-
-    if [[ $vram_gb -ge 12 ]]; then
-        echo "  [1] llama3.1:8b           - General chat (Q4, ~5 GB)     ★ Recommended"
-        echo "  [2] qwen2.5:14b           - Advanced chat (Q4, ~9 GB)"
-        echo "  [3] deepseek-coder-v2:16b - Code generation (Q4, ~10 GB) ★ Best for code"
-        echo "  [4] mistral-nemo:12b      - Balanced chat (Q6, ~10 GB)"
-        echo "  [5] codellama:13b         - Code generation (Q4, ~8 GB)"
-        echo "  [6] llama3.1:8b-q8_0      - High-quality chat (Q8, ~8.5 GB)"
-    elif [[ $vram_gb -ge 8 ]]; then
-        echo "  [1] llama3.1:8b           - General chat (Q4, ~5 GB)     ★ Recommended"
-        echo "  [2] mistral-nemo:12b      - Balanced chat (Q4, ~7.5 GB)"
-        echo "  [3] codellama:13b         - Code generation (Q4, ~7.8 GB)"
-        echo "  [4] deepseek-coder:6.7b   - Code generation (Q5, ~5 GB) ★ Best for code"
-        echo "  [5] qwen2.5:7b            - Balanced chat (Q4, ~4.5 GB)"
-    elif [[ $vram_gb -ge 6 ]]; then
-        echo "  [1] llama3.1:8b           - General chat (Q4, ~5 GB)     ★ Recommended"
-        echo "  [2] mistral:7b            - Balanced chat (Q4, ~4.5 GB)"
-        echo "  [3] deepseek-coder:6.7b   - Code generation (Q4, ~4.5 GB) ★ Best for code"
-        echo "  [4] qwen2.5:7b            - Balanced chat (Q4, ~4.5 GB)"
-        echo "  [5] phi3:mini             - Small but capable (Q4, ~2.5 GB)"
-    else
-        echo "  [1] phi3:mini             - Small but capable (Q4, ~2.5 GB)"
-        echo "  [2] llama3.2:3b           - Lightweight chat (Q4, ~2 GB)"
-        echo "  [3] deepseek-coder:1.3b   - Lightweight code (Q4, ~1 GB)"
-    fi
-
-    echo ""
-    echo "  [c] Custom model name (enter manually)"
-    echo "  [s] Skip model pulling"
-    echo ""
-
-    while true; do
-        read -rp "Select models to pull (comma-separated, e.g., 1,3): " selection
-
-        if [[ "$selection" == "s" ]]; then
-            info "Skipping model pull."
-            return 0
-        fi
-
-        if [[ "$selection" == "c" ]]; then
-            read -rp "Enter model name(s) (space-separated, e.g., llama3.1:8b mistral:7b): " custom_models
-            for model in $custom_models; do
-                info "Pulling model: $model"
-                ollama pull "$model"
-                log "Model $model pulled successfully."
-            done
-            return 0
-        fi
-
-        # Parse comma-separated numbers
-        IFS=',' read -ra selections <<< "$selection"
-        for sel in "${selections[@]}"; do
-            sel=$(echo "$sel" | tr -d ' ')
-            local model_name
-            model_name=$(get_model_by_selection "$vram_gb" "$sel")
-            if [[ -n "$model_name" ]]; then
-                info "Pulling model: $model_name"
-                ollama pull "$model_name"
-                log "Model $model_name pulled successfully."
-            else
-                warn "Invalid selection: $sel"
-            fi
-        done
-        break
-    done
-}
-
-get_model_by_selection() {
-    local vram_gb=$1
-    local selection=$2
-
-    if [[ $vram_gb -ge 12 ]]; then
-        case $selection in
-            1) echo "llama3.1:8b" ;;
-            2) echo "qwen2.5:14b" ;;
-            3) echo "deepseek-coder-v2:16b" ;;
-            4) echo "mistral-nemo:12b" ;;
-            5) echo "codellama:13b" ;;
-            6) echo "llama3.1:8b-q8_0" ;;
-            *) echo "" ;;
-        esac
-    elif [[ $vram_gb -ge 8 ]]; then
-        case $selection in
-            1) echo "llama3.1:8b" ;;
-            2) echo "mistral-nemo:12b" ;;
-            3) echo "codellama:13b" ;;
-            4) echo "deepseek-coder:6.7b" ;;
-            5) echo "qwen2.5:7b" ;;
-            *) echo "" ;;
-        esac
-    elif [[ $vram_gb -ge 6 ]]; then
-        case $selection in
-            1) echo "llama3.1:8b" ;;
-            2) echo "mistral:7b" ;;
-            3) echo "deepseek-coder:6.7b" ;;
-            4) echo "qwen2.5:7b" ;;
-            5) echo "phi3:mini" ;;
-            *) echo "" ;;
-        esac
-    else
-        case $selection in
-            1) echo "phi3:mini" ;;
-            2) echo "llama3.2:3b" ;;
-            3) echo "deepseek-coder:1.3b" ;;
-            *) echo "" ;;
-        esac
-    fi
 }
 
 # --- Phase: Docker -----------------------------------------------------------
@@ -649,9 +513,7 @@ print_summary() {
     # Ollama status
     if command -v ollama &>/dev/null; then
         echo -e "${BOLD}Ollama:${NC}"
-        echo "  API:    http://localhost:${OLLAMA_PORT:-11434}"
-        echo "  Models:"
-        ollama list 2>/dev/null | sed 's/^/    /' || echo "    (none pulled yet)"
+        echo "  API: http://localhost:${OLLAMA_PORT:-11434}"
         echo ""
     fi
 
@@ -686,9 +548,9 @@ print_summary() {
     echo "  sudo ufw status             # Firewall rules"
     echo "  sensors                     # CPU/GPU temperatures"
     echo ""
-    echo -e "${BOLD}Connect from VS Code:${NC}"
-    echo "  Install the Continue extension, then configure:"
-    echo "    API Base: http://$(tailscale ip -4 2>/dev/null || echo '<this-machine-ip>'):${OLLAMA_PORT:-11434}"
+    echo -e "${BOLD}Next steps:${NC}"
+    echo "  Pull models with: ollama pull <model>"
+    echo "  See ollama-usage/ for model selection guidance."
     echo ""
     echo -e "${BOLD}Log file:${NC} $LOG_FILE"
 }
@@ -708,7 +570,7 @@ usage() {
     echo "Phases:"
     echo "  system     System setup (packages, hostname, lid close, services)"
     echo "  nvidia     NVIDIA GPU driver installation"
-    echo "  ollama     Ollama LLM runtime and model pulling"
+    echo "  ollama     Ollama LLM runtime installation and configuration"
     echo "  docker     Docker engine installation"
     echo "  webui      Open WebUI deployment"
     echo "  tailscale  Tailscale VPN setup"

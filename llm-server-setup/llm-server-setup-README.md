@@ -1,11 +1,11 @@
 # LLM Server Setup Script
 
-Automated setup script for converting gaming laptops into headless LLM inference servers running Ubuntu Server 24.04 LTS.
+Automated setup script for converting any computer into a headless LLM inference server running Ubuntu Server 24.04 LTS.
 
 ## Prerequisites
 
 - Fresh install of **Ubuntu Server 24.04 LTS**
-- NVIDIA GPU (RTX 3060–4070 range)
+- NVIDIA GPU
 - Internet connection
 - SSH access (or physical keyboard/monitor)
 
@@ -13,7 +13,7 @@ Automated setup script for converting gaming laptops into headless LLM inference
 
 ```bash
 # 1. Copy the scripts to your server
-scp -r scripts/llm-server-setup/ user@server:~/
+scp -r llm-server-setup/ user@server:~/
 
 # 2. SSH into the server
 ssh user@server
@@ -34,7 +34,6 @@ sudo ~/llm-server-setup/llm-server-setup.sh --all
 |------|-------------|
 | `llm-server-setup.sh` | Main setup script (run with `sudo` on the server) |
 | `llm-server.conf` | Configuration file — edit before running |
-| `continue-setup.sh` | VS Code Continue extension setup (run on your dev machine) |
 | `llm-server-setup-README.md` | This file |
 
 ## Configuration
@@ -45,7 +44,6 @@ Edit `llm-server.conf` before running. Key settings:
 |---------|---------|-------------|
 | `HOSTNAME` | `llm-server` | Machine hostname (used by Tailscale MagicDNS) |
 | `OLLAMA_HOST` | `0.0.0.0` | Interface Ollama listens on |
-| `OLLAMA_MODELS` | `interactive` | Models to pull (`interactive` = choose at runtime) |
 | `INSTALL_OPEN_WEBUI` | `yes` | Deploy Open WebUI (ChatGPT-like web interface) |
 | `INSTALL_TAILSCALE` | `yes` | Install Tailscale VPN for remote access |
 | `NVIDIA_DRIVER` | `auto` | `auto` or a specific version like `560` |
@@ -94,44 +92,13 @@ The script runs in 7 phases, executed in order:
 |---|-------|--------------|
 | 1 | `system` | Updates OS, installs packages, sets hostname, configures lid close, disables bloat services |
 | 2 | `nvidia` | Installs NVIDIA GPU drivers (prompts for reboot) |
-| 3 | `ollama` | Installs Ollama, configures network listening, pulls LLM models |
+| 3 | `ollama` | Installs Ollama and configures network listening |
 | 4 | `docker` | Installs Docker Engine |
 | 5 | `webui` | Deploys Open WebUI container |
 | 6 | `tailscale` | Installs and authenticates Tailscale VPN |
 | 7 | `security` | Configures UFW firewall, fail2ban, SSH hardening |
 
 Each phase is **idempotent** — it checks if it has already been completed and skips if so. Progress is tracked in `/var/tmp/llm-server-setup-progress`.
-
-## Two-Laptop Setup
-
-To set up both laptops:
-
-### Laptop 1 (ROG Zephyrus — Chat Server)
-```bash
-# Edit config
-HOSTNAME="rog-zephyrus"
-OLLAMA_MODELS="llama3.1:8b"
-
-# Run
-sudo ./llm-server-setup.sh --all
-```
-
-### Laptop 2 (MSI Gaming — Code Server)
-```bash
-# Edit config
-HOSTNAME="msi-gaming"
-OLLAMA_MODELS="deepseek-coder-v2:16b"
-
-# Run
-sudo ./llm-server-setup.sh --all
-```
-
-### Connect Open WebUI to Both
-
-On whichever laptop runs Open WebUI, set:
-```
-OPEN_WEBUI_OLLAMA_URLS="http://localhost:11434;http://<other-laptop-tailscale-ip>:11434"
-```
 
 ## After Setup
 
@@ -140,16 +107,11 @@ OPEN_WEBUI_OLLAMA_URLS="http://localhost:11434;http://<other-laptop-tailscale-ip
 # GPU status
 nvidia-smi
 
-# Ollama models
+# Ollama status
 ollama list
 
-# Chat in terminal
-ollama run llama3.1:8b
-
 # Test API
-curl http://localhost:11434/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model":"llama3.1:8b","messages":[{"role":"user","content":"Hello!"}]}'
+curl http://localhost:11434/api/tags
 
 # Tailscale status
 tailscale status
@@ -157,31 +119,6 @@ tailscale status
 # Open WebUI
 # Visit http://localhost:3000 in a browser
 ```
-
-### VS Code Integration
-
-Install the **Continue** extension (v1.2+) in VS Code, then use the `continue-setup.sh` script on your dev machine to configure it:
-
-```bash
-# First-time setup — initialize config with a chat model
-./continue-setup.sh init --host wrog0llmserver --model llama3.1:8b --name "Llama 3.1 8B"
-
-# Add the DeepSeek code model for autocomplete
-./continue-setup.sh add --host wrog0llmserver --model deepseek-coder:6.7b \
-    --name "DeepSeek Coder 6.7B" --roles autocomplete
-
-# List current configuration
-./continue-setup.sh list
-
-# Remove a model
-./continue-setup.sh remove --name "DeepSeek Coder 6.7B"
-```
-
-Use Tailscale hostnames (if MagicDNS is enabled) or Tailscale IPs for `--host`.
-
-Available roles: `chat`, `edit`, `apply`, `autocomplete`, `embed`
-
-> **Requires:** `python3` with PyYAML (`pip3 install pyyaml`) on your dev machine.
 
 ## Logs & Troubleshooting
 
