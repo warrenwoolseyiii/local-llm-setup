@@ -7,7 +7,7 @@ This repository is a practical toolkit for two related jobs:
 
 The goal is simple: keep your AI workflow fast, private where possible, and cheaper to use by reducing unnecessary token usage.
 
-## What’s Inside
+## What's Inside
 
 - [llm-server-setup/](llm-server-setup/) - Ubuntu Server setup for a headless NVIDIA-based LLM box.
 - [ollama-usage/](ollama-usage/) - Model-picking and `ollama` usage guidance after the server is up.
@@ -44,6 +44,7 @@ Start here:
 - [coding-env-setup/ai-rules-setup.md](coding-env-setup/ai-rules-setup.md)
 - [coding-env-setup/rtk-setup.md](coding-env-setup/rtk-setup.md)
 - [coding-env-setup/caveman-setup.md](coding-env-setup/caveman-setup.md)
+- [coding-env-setup/roo-code-model-assignment.md](coding-env-setup/roo-code-model-assignment.md)
 
 What it does:
 
