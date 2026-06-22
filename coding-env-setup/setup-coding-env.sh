@@ -47,6 +47,7 @@ install_codegraph() {
 
   if command -v codegraph &>/dev/null; then
     ok "CodeGraph already installed: $(codegraph --version 2>/dev/null || echo 'found')"
+    init_codegraph
     return
   fi
 
@@ -57,11 +58,22 @@ install_codegraph() {
     echo ""
     if command -v codegraph &>/dev/null; then
       ok "CodeGraph installed successfully."
+      init_codegraph
     else
       warn "CodeGraph installed but not on PATH. Add ~/.local/bin to PATH."
+      warn "After fixing PATH, run: codegraph init"
     fi
   else
     info "Skipping CodeGraph."
+  fi
+}
+
+init_codegraph() {
+  echo ""
+  if prompt_yn "Initialize CodeGraph in current project? (codegraph init)"; then
+    info "Running codegraph init..."
+    codegraph init 2>/dev/null || true
+    ok "CodeGraph initialized."
   fi
 }
 
