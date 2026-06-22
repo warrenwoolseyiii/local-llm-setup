@@ -1,4 +1,4 @@
-#
+﻿#
 # setup-coding-env.ps1 — Master setup script for token-optimized coding environment.
 #
 # Checks for and optionally installs: CodeGraph, RTK, Caveman, Continue.
@@ -38,11 +38,10 @@ function Prompt-YN {
 function Install-CodeGraph {
     Write-Header "CodeGraph"
 
-    $cg = Get-Command codegraph -ErrorAction SilentlyContinue
-    if ($cg) {
-        $ver = & codegraph --version 2>$null
-        if (-not $ver) { $ver = "found" }
-        Write-Ok "CodeGraph already installed: $ver"
+    # This should check for the `.codegraph` directory in the current project
+    $codegraphDir = Join-Path (Get-Location) ".codegraph"
+    if (Test-Path $codegraphDir) {
+        Write-Ok "CodeGraph directory already exists in the current project."
         Initialize-CodeGraph
         return
     }
@@ -50,13 +49,13 @@ function Install-CodeGraph {
     Write-Warn "CodeGraph not found."
     if (Prompt-YN "Install CodeGraph? (codebase analysis tool)") {
         Write-Info "Installing CodeGraph..."
-        # NOTE: CodeGraph install script is Unix-oriented.
-        # On Windows, download binary manually or use alternative method.
         try {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh" -OutFile "$env:TEMP\codegraph-install.sh"
-            Write-Warn "CodeGraph installer is a shell script. Please install manually on Windows."
-            Write-Warn "See: https://github.com/colbymchenry/codegraph for Windows instructions."
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1" -OutFile "codegraph-install.ps1"
+            & .\codegraph-install.ps1
+            Initialize-CodeGraph
+            Remove-Item "codegraph-install.ps1" -Force -ErrorAction SilentlyContinue
         } catch {
+            Write-Warn "See: https://github.com/colbymchenry/codegraph for Windows instructions."
             Write-Err "Failed to download CodeGraph installer: $_"
         }
     } else {
@@ -90,19 +89,50 @@ function Install-RTK {
     Write-Warn "RTK not found."
     if (Prompt-YN "Install RTK? (CLI proxy for token savings)") {
         Write-Info "Installing RTK..."
-        # Prefer winget/scoop if available, fall back to curl script
-        $scoop = Get-Command scoop -ErrorAction SilentlyContinue
-        if ($scoop) {
-            & scoop install rtk
-        } else {
-            try {
-                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh" -OutFile "$env:TEMP\rtk-install.sh"
-                Write-Warn "RTK installer is a shell script. On Windows, try: scoop install rtk"
-                Write-Warn "Or install via cargo: cargo install rtk"
-                Write-Warn "See: https://github.com/rtk-ai/rtk for Windows instructions."
-            } catch {
-                Write-Err "Failed to download RTK installer: $_"
+
+        $rtkZip    = Join-Path $env:TEMP "rtk-windows.zip"
+        $rtkExtract = Join-Path $env:TEMP "rtk-extract"
+        $rtkBin    = Join-Path $env:USERPROFILE ".local\bin"
+        $rtkExe    = Join-Path $rtkBin "rtk.exe"
+        $releaseUrl = "https://github.com/rtk-ai/rtk/releases/latest/download/rtk-x86_64-pc-windows-msvc.zip"
+
+        $installed = $false
+
+        # 1. Try direct zip download from GitHub releases
+        try {
+            Write-Info "Downloading RTK from GitHub releases..."
+            Invoke-WebRequest -Uri $releaseUrl -OutFile $rtkZip -UseBasicParsing
+            if (-not (Test-Path $rtkBin)) { New-Item -ItemType Directory -Path $rtkBin -Force | Out-Null }
+            Expand-Archive -Path $rtkZip -DestinationPath $rtkExtract -Force
+            Copy-Item (Join-Path $rtkExtract "rtk.exe") $rtkExe -Force
+            Remove-Item $rtkZip -Force -ErrorAction SilentlyContinue
+            Remove-Item $rtkExtract -Recurse -Force -ErrorAction SilentlyContinue
+            # Add to PATH for this session
+            $env:PATH = "$rtkBin;$env:PATH"
+            Write-Ok "RTK extracted to $rtkExe"
+            Write-Warn "Add to permanent PATH: [Environment]::SetEnvironmentVariable('PATH', `$env:PATH + ';$rtkBin', 'User')"
+            $installed = $true
+        } catch {
+            Write-Warn "Direct download failed: $_"
+            # 2. Fall back to scoop
+            $scoop = Get-Command scoop -ErrorAction SilentlyContinue
+            if ($scoop) {
+                Write-Info "Trying scoop install rtk..."
+                try {
+                    & scoop install rtk
+                    $installed = $true
+                } catch {
+                    Write-Warn "scoop install failed: $_"
+                }
             }
+        }
+
+        if (-not $installed) {
+            Write-Warn "Could not auto-install RTK. Options:"
+            Write-Host "  1. Download manually: https://github.com/rtk-ai/rtk/releases/latest"
+            Write-Host "     Extract rtk.exe to a folder in your PATH."
+            Write-Host "  2. Install scoop: https://scoop.sh  then: scoop install rtk"
+            Write-Host "  3. Install cargo: https://rustup.rs  then: cargo install rtk"
         }
 
         $rtkCheck = Get-Command rtk -ErrorAction SilentlyContinue
@@ -110,7 +140,7 @@ function Install-RTK {
             Write-Ok "RTK installed successfully."
             Initialize-RTK
         } else {
-            Write-Warn "RTK not on PATH. Install manually and ensure it's in PATH."
+            Write-Warn "RTK not found on PATH yet. Restart terminal after adding $rtkBin to PATH."
             Write-Warn "After fixing PATH, run: rtk init --agent cline; rtk init -g"
         }
     } else {
@@ -132,7 +162,7 @@ function Initialize-RTK {
 # ==============================================================================
 # 3. Continue (VSCode Extension — manual only)
 # ==============================================================================
-function Check-Continue {
+function Show-ContinueStatus {
     Write-Header "Continue (Local LLM Chat)"
 
     $configPath = Join-Path $env:USERPROFILE ".continue\config.yaml"
@@ -155,7 +185,9 @@ function Check-Continue {
 function Install-Caveman {
     Write-Header "Caveman Skill"
 
-    $skillPath = Join-Path $env:USERPROFILE ".agents\skills\caveman\SKILL.md"
+    # All skills would be installed in the directory the user is calling this script from
+    $currentDir = Get-Location
+    $skillPath = Join-Path $currentDir ".agents\skills\caveman\SKILL.md"
     if (Test-Path $skillPath) {
         Write-Ok "Caveman skill already installed."
         return
@@ -163,17 +195,18 @@ function Install-Caveman {
 
     Write-Warn "Caveman skill not found."
     if (Prompt-YN "Install Caveman? (response compression skill for Roo Code/Cline)") {
-        Write-Host ""
-        Write-Host "  Caveman must be installed through Roo Code / Cline UI:"
-        Write-Host ""
-        Write-Host "  1. Open Roo Code / Cline in VSCode"
-        Write-Host "  2. Go to Skills settings"
-        Write-Host "  3. Add skill from GitHub: JuliusBrussee/caveman"
-        Write-Host ""
-        Write-Host "  This installs to ~/.agents/skills/caveman/"
-        Write-Host "  Setup guide: $ScriptDir\caveman-setup.md"
-        Write-Host ""
-        Write-Warn "Cannot auto-install — requires Roo Code UI."
+        Write-Info "Installing Caveman via install.ps1..."
+        $caveTmp = Join-Path $env:TEMP "caveman-install.ps1"
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.ps1" -OutFile $caveTmp -UseBasicParsing
+            & $caveTmp
+            Remove-Item $caveTmp -Force -ErrorAction SilentlyContinue
+            Write-Ok "Caveman installed successfully."
+        } catch {
+            Remove-Item $caveTmp -Force -ErrorAction SilentlyContinue
+            Write-Err "Caveman install failed: $_"
+            Write-Host "  Setup guide: $ScriptDir\caveman-setup.md"
+        }
     } else {
         Write-Info "Skipping Caveman."
     }
@@ -217,19 +250,19 @@ function Apply-AIRules {
         }
 
         if (Test-Path $target) {
-            # Check if rules already appended
+            # Check if rules already appended (by setup-coding-env) OR raw-copied (by setup-ai-rules)
             $existingContent = Get-Content $target -Raw -ErrorAction SilentlyContinue
-            if ($existingContent -and $existingContent.Contains("Token Efficiency Rules (auto-appended by setup-coding-env")) {
+            if ($existingContent -and ($existingContent.Contains("Token Efficiency Rules (auto-appended by setup-coding-env") -or $existingContent.Contains("# Token Efficiency Rules"))) {
                 Write-Host "  - already has rules: $targetName"
                 continue
             }
             # Append to existing file
-            Add-Content -Path $target -Value $Separator
-            Add-Content -Path $target -Value $rulesContent
+            Add-Content -Path $target -Value $Separator -Encoding UTF8
+            Add-Content -Path $target -Value $rulesContent -Encoding UTF8
             Write-Host "  ✓ appended: $targetName"
         } else {
             # Create new file with rules
-            Set-Content -Path $target -Value $rulesContent
+            Set-Content -Path $target -Value $rulesContent -Encoding UTF8
             Write-Host "  ✓ created:  $targetName"
         }
     }
@@ -238,7 +271,7 @@ function Apply-AIRules {
 # ==============================================================================
 # 6. Print Guidelines
 # ==============================================================================
-function Print-Guidelines {
+function Show-Guidelines {
     Write-Header "Setup Complete — Guidelines"
 
     Write-Host @"
@@ -287,7 +320,7 @@ Write-Host ""
 
 Install-CodeGraph
 Install-RTK
-Check-Continue
+Show-ContinueStatus
 Install-Caveman
 Apply-AIRules
-Print-Guidelines
+Show-Guidelines

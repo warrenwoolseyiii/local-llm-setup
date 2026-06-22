@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 REM ============================================================================
 REM setup-ai-rules.bat — Apply unified AI rules (RTK + terse/caveman) to all coding agents.
 REM
@@ -127,7 +128,11 @@ for %%I in ("%TARGET%") do set "TARGET_DIR=%%~dpI"
 if not exist "%TARGET_DIR%" mkdir "%TARGET_DIR%"
 if exist "%TARGET%" del /f /q "%TARGET%"
 copy /y "%RULES_SOURCE%" "%TARGET%" >nul
-echo   ✓ copied:    %TARGET%
+if !errorlevel! neq 0 (
+    echo   ✗ copy FAILED: %TARGET%
+) else (
+    echo   ✓ copied:    %TARGET%
+)
 goto :eof
 
 :process_target

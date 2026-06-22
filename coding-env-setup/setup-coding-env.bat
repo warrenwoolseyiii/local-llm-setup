@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 REM ============================================================================
 REM setup-coding-env.bat — Master setup for token-optimized coding environment.
 REM
@@ -35,15 +36,25 @@ REM 1. CodeGraph
 REM ===========================================================================
 call :header "CodeGraph"
 where codegraph >nul 2>&1
-if %errorlevel%==0 (
+set "CG_FOUND=!errorlevel!"
+if "!CG_FOUND!"=="0" (
     echo ✓  CodeGraph already installed.
     call :prompt_codegraph_init
 ) else (
     echo ⚠  CodeGraph not found.
     set /p "CG_INSTALL=?  Install CodeGraph? (codebase analysis tool) [y/N] "
     if /i "!CG_INSTALL!"=="y" (
-        echo i  CodeGraph installer is Unix-only. Install manually on Windows.
-        echo    See: https://github.com/colbymchenry/codegraph
+        echo i  Attempting to install CodeGraph...
+        npm i -g @colbymchenry/codegraph
+        REM Check if CodeGraph was installed successfully
+        where codegraph >nul 2>&1
+        if !errorlevel!==0 (
+            echo ✓  CodeGraph installed successfully.
+            call :prompt_codegraph_init
+        ) else (
+            echo ⚠  CodeGraph not on PATH. Install manually.
+            echo    See: https://github.com/colbymchenry/codegraph
+        )
     ) else (
         echo i  Skipping CodeGraph.
     )
@@ -54,28 +65,52 @@ REM 2. RTK
 REM ===========================================================================
 call :header "RTK (Rust Token Killer)"
 where rtk >nul 2>&1
-if %errorlevel%==0 (
+set "RTK_FOUND=!errorlevel!"
+if "!RTK_FOUND!"=="0" (
     echo ✓  RTK already installed.
     call :prompt_rtk_init
 ) else (
     echo ⚠  RTK not found.
     set /p "RTK_INSTALL=?  Install RTK? (CLI proxy for token savings) [y/N] "
     if /i "!RTK_INSTALL!"=="y" (
-        where scoop >nul 2>&1
+        set "RTK_RELEASE_URL=https://github.com/rtk-ai/rtk/releases/latest/download/rtk-x86_64-pc-windows-msvc.zip"
+        set "RTK_ZIP=%TEMP%\rtk-windows.zip"
+        set "RTK_EXTRACT=%TEMP%\rtk-extract"
+        set "RTK_BIN=%USERPROFILE%\.local\bin"
+        echo i  Downloading RTK from GitHub releases...
+        powershell -NoProfile -Command "Invoke-WebRequest -Uri '!RTK_RELEASE_URL!' -OutFile '!RTK_ZIP!' -UseBasicParsing"
         if !errorlevel!==0 (
-            echo i  Installing RTK via scoop...
-            scoop install rtk
+            echo i  Extracting RTK...
+            if not exist "!RTK_BIN!" mkdir "!RTK_BIN!"
+            powershell -NoProfile -Command "Expand-Archive -Path '!RTK_ZIP!' -DestinationPath '!RTK_EXTRACT!' -Force; Copy-Item '!RTK_EXTRACT!\rtk.exe' '!RTK_BIN!\rtk.exe' -Force"
+            del /f /q "!RTK_ZIP!" >nul 2>&1
+            rmdir /s /q "!RTK_EXTRACT!" >nul 2>&1
+            REM Add to PATH for this session
+            set "PATH=!PATH!;!RTK_BIN!"
+            echo i  RTK installed to !RTK_BIN!\rtk.exe
+            echo ⚠  Ensure !RTK_BIN! is in your PATH permanently.
+            echo    Add to PATH: setx PATH "%%PATH%%;!RTK_BIN!"
         ) else (
-            echo ⚠  RTK installer is Unix-only. Try: scoop install rtk
-            echo    Or: cargo install rtk
-            echo    See: https://github.com/rtk-ai/rtk
+            echo ⚠  Download failed. Trying scoop...
+            where scoop >nul 2>&1
+            if !errorlevel!==0 (
+                echo i  Installing RTK via scoop...
+                scoop install rtk
+            ) else (
+                echo ⚠  Could not auto-install RTK.
+                echo    Options:
+                echo      1. Download manually: https://github.com/rtk-ai/rtk/releases/latest
+                echo         Extract rtk.exe to a folder in your PATH.
+                echo      2. Install scoop: https://scoop.sh then: scoop install rtk
+                echo      3. Install cargo: https://rustup.rs then: cargo install rtk
+            )
         )
         where rtk >nul 2>&1
         if !errorlevel!==0 (
             echo ✓  RTK installed successfully.
             call :prompt_rtk_init
         ) else (
-            echo ⚠  RTK not on PATH. Install manually.
+            echo ⚠  RTK not on PATH. Restart terminal after adding !RTK_BIN! to PATH.
         )
     ) else (
         echo i  Skipping RTK.
@@ -108,17 +143,14 @@ if exist "%USERPROFILE%\.agents\skills\caveman\SKILL.md" (
     echo ⚠  Caveman skill not found.
     set /p "CAV_INSTALL=?  Install Caveman? (response compression for Roo Code/Cline) [y/N] "
     if /i "!CAV_INSTALL!"=="y" (
-        echo.
-        echo   Caveman must be installed through Roo Code / Cline UI:
-        echo.
-        echo   1. Open Roo Code / Cline in VSCode
-        echo   2. Go to Skills settings
-        echo   3. Add skill from GitHub: JuliusBrussee/caveman
-        echo.
-        echo   This installs to ~/.agents/skills/caveman/
-        echo   Setup guide: %SCRIPT_DIR%\caveman-setup.md
-        echo.
-        echo ⚠  Cannot auto-install — requires Roo Code UI.
+        echo i  Installing Caveman via install.ps1...
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "$t = Join-Path $env:TEMP 'caveman-install.ps1'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.ps1' -OutFile $t -UseBasicParsing; & $t; Remove-Item $t -Force -ErrorAction SilentlyContinue"
+        if exist "%USERPROFILE%\.agents\skills\caveman\SKILL.md" (
+            echo ✓  Caveman installed successfully.
+        ) else (
+            echo ⚠  Caveman install may have failed. Check output above.
+            echo    Setup guide: %SCRIPT_DIR%\caveman-setup.md
+        )
     ) else (
         echo i  Skipping Caveman.
     )
@@ -197,9 +229,9 @@ goto :eof
 :prompt_rtk_init
 set /p "RTK_INIT=?  Initialize RTK for Cline/Roo Code (local + global)? [y/N] "
 if /i "!RTK_INIT!"=="y" (
-    echo i  Running rtk init --agent cline (local)...
+    echo i  Running rtk init --agent cline...
     rtk init --agent cline 2>nul
-    echo i  Running rtk init -g (global)...
+    echo i  Running rtk init -g...
     rtk init -g 2>nul
     echo ✓  RTK initialized.
 )
@@ -215,15 +247,20 @@ for %%I in ("%TARGET%") do set "TARGET_DIR=%%~dpI"
 if not exist "%TARGET_DIR%" mkdir "%TARGET_DIR%"
 
 if exist "%TARGET%" (
-    REM Check if rules already appended
+    REM Check if rules already appended (by setup-coding-env) OR raw-copied (by setup-ai-rules)
     findstr /c:"Token Efficiency Rules (auto-appended by setup-coding-env" "%TARGET%" >nul 2>&1
+    if !errorlevel!==0 (
+        echo   - already has rules: %TARGET_NAME%
+        goto :eof
+    )
+    findstr /c:"# Token Efficiency Rules" "%TARGET%" >nul 2>&1
     if !errorlevel!==0 (
         echo   - already has rules: %TARGET_NAME%
         goto :eof
     )
     REM Append separator and rules
     echo. >> "%TARGET%"
-    echo %SEPARATOR% >> "%TARGET%"
+    (echo !SEPARATOR!) >> "%TARGET%"
     type "%RULES_SOURCE%" >> "%TARGET%"
     echo   ✓ appended: %TARGET_NAME%
 ) else (

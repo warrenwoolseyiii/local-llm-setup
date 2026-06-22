@@ -1,4 +1,4 @@
-#
+﻿#
 # setup-ai-rules.ps1 — Apply unified AI rules (RTK + terse/caveman) to all coding agents.
 #
 # Usage:
@@ -100,9 +100,9 @@ function Remove-Target {
             Write-Host "  ✗ removed symlink: $Target"
         } else {
             # Only remove if content matches our rules (safety check)
-            $sourceContent = Get-Content $RulesSource -Raw -ErrorAction SilentlyContinue
+            $sourceContent = if (Test-Path $RulesSource) { Get-Content $RulesSource -Raw -ErrorAction SilentlyContinue } else { $null }
             $targetContent = Get-Content $Target -Raw -ErrorAction SilentlyContinue
-            if ($sourceContent -eq $targetContent) {
+            if ($null -eq $sourceContent -or $sourceContent -eq $targetContent) {
                 Remove-Item -Path $Target -Force
                 Write-Host "  ✗ removed copy: $Target"
             } else {
