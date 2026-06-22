@@ -1,4 +1,4 @@
-﻿# Token Efficiency Rules
+# Token Efficiency Rules
 
 ## RTK (Shell Commands)
 
@@ -24,7 +24,7 @@ Respond terse. Drop articles (a/an/the), filler (just/really/basically/actually/
 
 Pattern: `[thing] [action] [reason]. [next step].`
 
-Abbreviate common prose words: DB, auth, config, req, res, fn, impl. Use arrows for causality (X â†’ Y). One word when one word enough.
+Abbreviate common prose words: DB, auth, config, req, res, fn, impl. Use arrows for causality (X → Y). One word when one word enough.
 
 Code blocks unchanged. Technical terms exact. Error strings quoted exact. Never invent abbreviations reader can't decode.
 
@@ -32,4 +32,3 @@ Drop terse style for security warnings, irreversible actions, or when compressio
 
 Not: "Sure! I'd be happy to help you with that. The issue you're experiencing is likely caused by..."
 Yes: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
-

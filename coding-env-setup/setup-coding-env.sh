@@ -11,7 +11,7 @@
 #
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RULES_SOURCE="$SCRIPT_DIR/.ai-rules.md"
 SEPARATOR="
 # --- Token Efficiency Rules (auto-appended by setup-coding-env.sh) ---
@@ -69,6 +69,11 @@ install_codegraph() {
 }
 
 init_codegraph() {
+  # Check if the .codegraph directory exists in the current project, if it does then we don't need to init
+  if [ -d ".codegraph" ]; then
+    ok "CodeGraph already initialized in this project."
+    return
+  fi
   echo ""
   if prompt_yn "Initialize CodeGraph in current project? (codegraph init)"; then
     info "Running codegraph init..."

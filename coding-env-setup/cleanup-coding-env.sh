@@ -76,6 +76,18 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 info "Project: $PROJECT_DIR"
 
+# Prompt the user alerting them what folders / files will be auto removed, if they decline just exit
+echo "The following files and directories will be removed:"
+echo "  Files : .clinerules, .continuerules, .cursorrules, .windsurfrules,"
+echo "          AGENTS.md, CLAUDE.md, skills-lock.json,"
+echo "          .github/copilot-instructions.md"
+echo "  Dirs  : .codegraph/, .agents/, .continue/, .roo/"
+read -p "Do you want to continue? [y/N] " response
+if [[ ! "$response" =~ ^[Yy]$ ]]; then
+  echo "Cleanup aborted."
+  exit 0
+fi
+
 # --- Generated files (root) ---------------------------------------------------
 header "Generated Files"
 
