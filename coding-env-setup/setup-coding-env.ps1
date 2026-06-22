@@ -38,10 +38,10 @@ function Prompt-YN {
 function Install-CodeGraph {
     Write-Header "CodeGraph"
 
-    # This should check for the `.codegraph` directory in the current project
-    $codegraphDir = Join-Path (Get-Location) ".codegraph"
-    if (Test-Path $codegraphDir) {
-        Write-Ok "CodeGraph directory already exists in the current project."
+    # Check if the codegraph command is found, and if so, initialize CodeGraph
+    $codegraph = Get-Command codegraph -ErrorAction SilentlyContinue
+    if ($codegraph) {
+        Write-Ok "CodeGraph command found."
         Initialize-CodeGraph
         return
     }
@@ -49,14 +49,22 @@ function Install-CodeGraph {
     Write-Warn "CodeGraph not found."
     if (Prompt-YN "Install CodeGraph? (codebase analysis tool)") {
         Write-Info "Installing CodeGraph..."
+        $installDir = Join-Path $env:USERPROFILE ".local\bin"
+        if (-not (Test-Path $installDir)) {
+            New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+        }
         try {
             Invoke-WebRequest -Uri "https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1" -OutFile "codegraph-install.ps1"
-            & .\codegraph-install.ps1
-            Initialize-CodeGraph
+            & .\codegraph-install.ps1 -InstallDir $installDir
             Remove-Item "codegraph-install.ps1" -Force -ErrorAction SilentlyContinue
+            # Ensure install dir is on PATH for this session
+            if ($env:PATH -notlike "*$installDir*") {
+                $env:PATH = "$installDir;$env:PATH"
+            }
+            Initialize-CodeGraph
         } catch {
             Write-Warn "See: https://github.com/colbymchenry/codegraph for Windows instructions."
-            Write-Err "Failed to download CodeGraph installer: $_"
+            Write-Err "Failed to install CodeGraph: $_"
         }
     } else {
         Write-Info "Skipping CodeGraph."
@@ -64,9 +72,15 @@ function Install-CodeGraph {
 }
 
 function Initialize-CodeGraph {
+    # First check to see if .codegraph directory exists in the current project, if it does, print success and skip init
+    $codegraphDir = Join-Path (Get-Location) ".codegraph"
+    if (Test-Path $codegraphDir) {
+        Write-Ok "CodeGraph directory already exists in the current project."
+        return
+    }
     Write-Host ""
     if (Prompt-YN "Initialize CodeGraph in current project? (codegraph init)") {
-        Write-Info "Running codegraph init..."
+        Write-Info "Running codegraph init in $(Get-Location)..."
         try { & codegraph init 2>$null } catch { }
         Write-Ok "CodeGraph initialized."
     }
