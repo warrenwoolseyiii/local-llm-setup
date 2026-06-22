@@ -1,3 +1,16 @@
 **.log
 
 **/plans/
+
+**/.clinerules
+**/.continuerules
+**/.cursorrules
+**/.windsurfrules
+**/AGENTS.md
+**/CLAUDE.md
+**/skills-lock.json
+.github\copilot-instructions.md
+**/.codegraph
+**/.agents
+**/.continue
+**/.roo
